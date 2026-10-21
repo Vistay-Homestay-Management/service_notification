@@ -1,0 +1,3 @@
+[submodule "contracts"]
+	path = contracts
+	url = https://github.com/Vistay-Homestay-Management/platform_contracts.git
