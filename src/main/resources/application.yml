@@ -8,12 +8,19 @@ spring:
     hikari:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:4}
       minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      schema: app
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: app
   flyway:
     enabled: true
+    default-schema: app
+    schemas: app
+    create-schemas: true
     clean-disabled: true
     baseline-on-migrate: false
     out-of-order: false
@@ -45,4 +52,3 @@ logging:
   structured:
     format:
       console: logstash
-
