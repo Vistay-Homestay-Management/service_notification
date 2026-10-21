@@ -7,7 +7,7 @@ on:
 
 jobs:
   service:
-    uses: Vistay-Homestay-Management/platform_infrastructure/.github/workflows/service-ci.yml@main
+    uses: Vistay-Homestay-Management/platform_infrastructure/.github/workflows/service-ci.yml@3873081cc1cd986040024e979790372da5efc5e6
     with:
       language: java
       image-name: service_notification
