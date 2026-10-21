@@ -1,0 +1,14 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  service:
+    uses: Vistay-Homestay-Management/platform_infrastructure/.github/workflows/service-ci.yml@main
+    with:
+      language: java
+      image-name: service_notification
+    secrets: inherit
