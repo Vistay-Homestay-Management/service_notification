@@ -1,0 +1,9 @@
+type Query {
+  notificationServiceInfo: NotificationServiceInfo!
+}
+
+type NotificationServiceInfo {
+  name: String!
+  version: String!
+}
+
