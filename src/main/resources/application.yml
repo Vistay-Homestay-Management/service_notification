@@ -32,6 +32,20 @@ spring:
       enabled: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9093}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SSL}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION:}
+      ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD:}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      enable-auto-commit: false
+      properties:
+        isolation.level: read_committed
 
 server:
   port: ${SERVER_PORT:8080}
