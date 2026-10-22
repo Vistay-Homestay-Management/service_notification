@@ -40,12 +40,24 @@ spring:
       ssl.truststore.password: ${KAFKA_TRUSTSTORE_PASSWORD:}
     producer:
       acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       properties:
         enable.idempotence: true
     consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:vistay-notification}
       enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
       properties:
         isolation.level: read_committed
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_BACKOFFICE_ISSUER:http://localhost:8180/realms/vistay-backoffice}
+          jwk-set-uri: ${KEYCLOAK_BACKOFFICE_JWKS_URI:http://localhost:8180/realms/vistay-backoffice/protocol/openid-connect/certs}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -69,4 +81,9 @@ logging:
 
 vistay:
   security:
-    jwt-secret: ${VISTAY_JWT_SECRET:local-development-secret-change-before-production-32}
+    audience: ${KEYCLOAK_BACKOFFICE_AUDIENCE:vistay-backoffice-api}
+  topics:
+    profile-provisioned: ${PROFILE_PROVISIONED_TOPIC:vistay.user.profile-provisioned.v1}
+  outbox:
+    poll-delay-ms: ${OUTBOX_POLL_DELAY_MS:1000}
+    send-timeout-seconds: ${OUTBOX_SEND_TIMEOUT_SECONDS:10}

@@ -1,3 +1,6 @@
+scalar Cursor
+scalar DateTime
+
 type Query {
   notificationServiceInfo: NotificationServiceInfo!
 }
@@ -7,3 +10,32 @@ type NotificationServiceInfo {
   version: String!
 }
 
+type Subscription {
+  notificationStream(afterCursor: Cursor): NotificationStreamEvent!
+}
+
+type NotificationStreamEvent {
+  cursor: Cursor!
+  notification: Notification!
+}
+
+type Notification {
+  id: ID!
+  category: NotificationCategory!
+  title: String!
+  body: String!
+  channels: [NotificationChannel!]!
+  createdAt: DateTime!
+  readAt: DateTime
+}
+
+enum NotificationCategory {
+  WELCOME
+  SECURITY
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
