@@ -1,5 +1,6 @@
 type Query {
   notificationServiceInfo: NotificationServiceInfo!
+  notificationInbox(afterCursor: String, first: Int = 50): [Notification!]!
 }
 
 type NotificationServiceInfo {
@@ -7,3 +8,25 @@ type NotificationServiceInfo {
   version: String!
 }
 
+type Subscription {
+  notificationStream(afterCursor: String): NotificationStreamEvent!
+}
+
+type NotificationStreamEvent {
+  cursor: String!
+  notification: Notification!
+}
+
+type Notification {
+  eventSequence: String!
+  id: ID!
+  notificationType: String!
+  title: String!
+  body: String!
+  priority: String!
+  referenceType: String
+  referenceId: ID
+  actionUrl: String
+  data: String!
+  createdAt: String!
+}
