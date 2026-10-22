@@ -46,7 +46,7 @@ public class ProfileProvisionedListener {
 
         var accountId = UUID.fromString(requiredText(envelope.data(), "accountId"));
         var displayName = requiredText(envelope.data(), "displayName");
-        var notificationId = jdbc.sql("""
+        var notification = jdbc.sql("""
             INSERT INTO notifications(
                 recipient_account_type, recipient_user_id, notification_type,
                 title, body, priority, source_service, source_event_id, status, data
@@ -59,28 +59,43 @@ public class ProfileProvisionedListener {
                          recipient_account_type, recipient_user_id)
                 WHERE source_event_id IS NOT NULL
             DO UPDATE SET updated_at = notifications.updated_at
-            RETURNING id
+            RETURNING id, event_sequence, created_at
             """)
             .param("accountId", accountId)
             .param("body", "Xin chào " + displayName
                 + ". Tài khoản Backoffice đã sẵn sàng. Hãy đổi mật khẩu tạm thời và bật MFA.")
             .param("sourceEventId", envelope.eventId())
-            .query(UUID.class)
+            .query(NotificationCreatedRow.class)
             .single();
 
+        jdbc.sql("""
+            INSERT INTO notification_deliveries(notification_id, channel, status, sent_at)
+            VALUES (:notificationId, 'IN_APP', 'SENT', now())
+            ON CONFLICT (notification_id, channel) DO NOTHING
+            """)
+            .param("notificationId", notification.id())
+            .update();
+
         var payload = json.writeValueAsString(new NotificationCreatedData(
-            notificationId, accountId, "ADMIN", "BACKOFFICE_WELCOME"
+            notification.id(),
+            accountId,
+            "WELCOME",
+            "backoffice.welcome",
+            java.util.List.of("IN_APP"),
+            Long.toString(notification.eventSequence()),
+            notification.createdAt()
         ));
         jdbc.sql("""
             INSERT INTO outbox_events(
                 aggregate_type, aggregate_id, aggregate_version, event_type,
                 event_version, payload, correlation_id, causation_id
             ) VALUES (
-                'Notification', :notificationId, 0, :eventType,
+                'Notification', :notificationId, :aggregateVersion, :eventType,
                 1, CAST(:payload AS jsonb), :correlationId, :causationId
             )
             """)
-            .param("notificationId", notificationId)
+            .param("notificationId", notification.id())
+            .param("aggregateVersion", notification.eventSequence())
             .param("eventType", NOTIFICATION_CREATED)
             .param("payload", payload)
             .param("correlationId", envelope.correlationId())
@@ -99,6 +114,8 @@ public class ProfileProvisionedListener {
     public record EventEnvelope(UUID eventId, String type, int version, UUID aggregateId,
         long aggregateVersion, String correlationId, String causationId, OffsetDateTime occurredAt,
         JsonNode data) {}
-    private record NotificationCreatedData(UUID notificationId, UUID accountId,
-        String accountType, String notificationType) {}
+    record NotificationCreatedRow(UUID id, long eventSequence, OffsetDateTime createdAt) {}
+    private record NotificationCreatedData(UUID notificationId, UUID recipientAccountId,
+        String category, String templateKey, java.util.List<String> channels, String cursor,
+        OffsetDateTime createdAt) {}
 }

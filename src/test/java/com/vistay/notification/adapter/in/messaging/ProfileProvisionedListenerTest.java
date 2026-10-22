@@ -34,6 +34,7 @@ class ProfileProvisionedListenerTest {
         var processed = mock(JdbcClient.StatementSpec.class);
         var notification = mock(JdbcClient.StatementSpec.class);
         var notificationQuery = mock(JdbcClient.MappedQuerySpec.class);
+        var delivery = mock(JdbcClient.StatementSpec.class);
         var outbox = mock(JdbcClient.StatementSpec.class);
 
         when(jdbc.sql(org.mockito.ArgumentMatchers.startsWith("INSERT INTO processed_events")))
@@ -44,8 +45,18 @@ class ProfileProvisionedListenerTest {
         when(jdbc.sql(org.mockito.ArgumentMatchers.startsWith("INSERT INTO notifications")))
             .thenReturn(notification);
         when(notification.param(anyString(), any())).thenReturn(notification);
-        when(notification.query(UUID.class)).thenReturn(notificationQuery);
-        when(notificationQuery.single()).thenReturn(notificationId);
+        when(notification.query(ProfileProvisionedListener.NotificationCreatedRow.class))
+            .thenReturn(notificationQuery);
+        when(notificationQuery.single()).thenReturn(
+            new ProfileProvisionedListener.NotificationCreatedRow(
+                notificationId, 1, OffsetDateTime.now()
+            )
+        );
+
+        when(jdbc.sql(org.mockito.ArgumentMatchers.startsWith("INSERT INTO notification_deliveries")))
+            .thenReturn(delivery);
+        when(delivery.param(anyString(), any())).thenReturn(delivery);
+        when(delivery.update()).thenReturn(1);
 
         when(jdbc.sql(org.mockito.ArgumentMatchers.startsWith("INSERT INTO outbox_events")))
             .thenReturn(outbox);
@@ -58,25 +69,28 @@ class ProfileProvisionedListenerTest {
               "type":"vistay.user.profile-provisioned",
               "version":1,
               "aggregateId":"%s",
-              "aggregateVersion":0,
-              "correlationId":"corr-1",
-              "causationId":"cause-1",
+              "aggregateVersion":1,
+              "correlationId":"%s",
+              "causationId":"%s",
               "occurredAt":"%s",
               "data":{
                 "accountId":"%s",
                 "profileId":"%s",
+                "realm":"BACKOFFICE",
                 "email":"admin@vistay.vn",
                 "displayName":"ViStay Admin",
-                "accountType":"ADMIN"
+                "authorizationVersion":1,
+                "provisionedAt":"%s"
               }
             }
-            """.formatted(eventId, profileId, OffsetDateTime.now(), accountId, profileId);
+            """.formatted(eventId, profileId, UUID.randomUUID(), UUID.randomUUID(),
+                OffsetDateTime.now(), accountId, profileId, OffsetDateTime.now());
 
         var listener = new ProfileProvisionedListener(jdbc, json);
         listener.onProfileProvisioned(envelope);
         listener.onProfileProvisioned(envelope);
 
-        verify(notification, times(1)).query(UUID.class);
+        verify(notification, times(1)).query(ProfileProvisionedListener.NotificationCreatedRow.class);
         verify(outbox, times(1)).update();
     }
 }
