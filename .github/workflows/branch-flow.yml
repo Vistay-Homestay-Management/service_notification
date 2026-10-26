@@ -1,0 +1,34 @@
+name: Branch Flow
+
+on:
+  pull_request:
+    branches: [dev, test, main]
+
+permissions:
+  contents: read
+
+jobs:
+  branch-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate promotion path
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          case "${BASE_BRANCH}:${HEAD_BRANCH}" in
+            dev:feature/SCRUM-*|dev:fix/SCRUM-*|dev:chore/SCRUM-*|dev:refactor/SCRUM-*|dev:docs/SCRUM-*|dev:test/SCRUM-*|dev:main)
+              ;;
+            dev:epic-01/*|dev:feat/epic-1-*)
+              echo "Temporary Epic 01 migration branch accepted."
+              ;;
+            test:dev|test:hotfix/SCRUM-*)
+              ;;
+            main:test)
+              ;;
+            *)
+              echo "Invalid branch flow: ${HEAD_BRANCH} -> ${BASE_BRANCH}" >&2
+              exit 1
+              ;;
+          esac
+
