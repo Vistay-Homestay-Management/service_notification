@@ -86,10 +86,14 @@ public class NotificationGraphQlController {
         if (cursor == null || cursor.isBlank()) {
             return 0;
         }
+        if (!cursor.matches("0|[1-9][0-9]*")) {
+            throw new IllegalArgumentException("afterCursor must be a canonical non-negative decimal cursor");
+        }
         try {
-            return Math.max(Long.parseLong(cursor), 0);
+            return Long.parseLong(cursor);
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("afterCursor must be a non-negative decimal cursor");
+            throw new IllegalArgumentException(
+                "afterCursor must be a canonical non-negative decimal cursor", invalid);
         }
     }
 
