@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [dev, test, main]
   pull_request:
 
 permissions:
@@ -29,11 +29,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/vistay-homestay-management/service_notification
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=raw,value=test,enable=${{ github.ref == 'refs/heads/test' }}
       - uses: docker/build-push-action@v6
-        if: github.event_name == 'push'
+        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         with:
           context: .
-          push: true
-          tags: |
-            ghcr.io/vistay-homestay-management/service_notification:latest
-            ghcr.io/vistay-homestay-management/service_notification:sha-${{ github.sha }}
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: ${{ github.event_name == 'push' }}
+          sbom: ${{ github.event_name == 'push' }}
+      - name: Promote tested image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/vistay-homestay-management/service_notification:latest \
+            --tag ghcr.io/vistay-homestay-management/service_notification:sha-${{ github.sha }} \
+            ghcr.io/vistay-homestay-management/service_notification:test
