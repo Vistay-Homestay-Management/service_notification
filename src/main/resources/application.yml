@@ -52,6 +52,10 @@ spring:
       auto-offset-reset: earliest
       properties:
         isolation.level: read_committed
+    listener:
+      observation-enabled: true
+    template:
+      observation-enabled: true
   security:
     oauth2:
       resourceserver:
@@ -64,6 +68,9 @@ server:
   shutdown: graceful
 
 management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
   endpoints:
     web:
       exposure:
