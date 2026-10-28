@@ -28,6 +28,9 @@ spring:
   graphql:
     http:
       path: /graphql
+      sse:
+        keep-alive: ${GRAPHQL_SSE_KEEP_ALIVE:10s}
+        timeout: ${GRAPHQL_SSE_TIMEOUT:0}
     graphiql:
       enabled: false
   kafka:
