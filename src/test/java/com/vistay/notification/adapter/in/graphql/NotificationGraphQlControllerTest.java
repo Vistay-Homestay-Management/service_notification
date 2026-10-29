@@ -1,5 +1,6 @@
 package com.vistay.notification.adapter.in.graphql;
 
+import com.vistay.notification.application.NotificationAuthorizationService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.when;
 class NotificationGraphQlControllerTest {
     @Mock
     private JdbcClient jdbc;
+    @Mock
+    private NotificationAuthorizationService authorization;
 
     @Test
     @SuppressWarnings("unchecked")
@@ -35,7 +38,8 @@ class NotificationGraphQlControllerTest {
         var statement = mock(JdbcClient.StatementSpec.class);
         var query = mock(JdbcClient.MappedQuerySpec.class);
 
-        when(jwt.getSubject()).thenReturn(accountId.toString());
+        when(authorization.requireOwnNotifications(jwt)).thenReturn(
+            new NotificationAuthorizationService.AuthorizedRecipient("HOST", accountId));
         when(jdbc.sql(contains("event_sequence > :cursor"))).thenReturn(statement);
         when(statement.param(anyString(), any())).thenReturn(statement);
         when(statement.query(NotificationGraphQlController.NotificationRow.class)).thenReturn(query);
@@ -49,7 +53,7 @@ class NotificationGraphQlControllerTest {
             null
         )));
 
-        var event = new NotificationGraphQlController(jdbc)
+        var event = new NotificationGraphQlController(jdbc, authorization)
             .notificationStream("41", jwt)
             .blockFirst(Duration.ofSeconds(1));
 
@@ -57,6 +61,7 @@ class NotificationGraphQlControllerTest {
         assertEquals(notificationId, event.notification().id());
         assertEquals("WELCOME", event.notification().category());
         assertTrue(event.notification().channels().contains("IN_APP"));
+        verify(statement).param("accountType", "HOST");
         verify(statement).param("accountId", accountId);
         verify(statement).param("cursor", 41L);
     }
@@ -64,11 +69,12 @@ class NotificationGraphQlControllerTest {
     @Test
     void rejectsAReplayCursorOutsideTheCanonicalNonNegativeFormat() {
         var jwt = mock(Jwt.class);
-        when(jwt.getSubject()).thenReturn(UUID.randomUUID().toString());
+        when(authorization.requireOwnNotifications(jwt)).thenReturn(
+            new NotificationAuthorizationService.AuthorizedRecipient("ADMIN", UUID.randomUUID()));
 
         assertThrows(IllegalArgumentException.class,
-            () -> new NotificationGraphQlController(jdbc).notificationStream("-1", jwt));
+            () -> new NotificationGraphQlController(jdbc, authorization).notificationStream("-1", jwt));
         assertThrows(IllegalArgumentException.class,
-            () -> new NotificationGraphQlController(jdbc).notificationStream("01", jwt));
+            () -> new NotificationGraphQlController(jdbc, authorization).notificationStream("01", jwt));
     }
 }

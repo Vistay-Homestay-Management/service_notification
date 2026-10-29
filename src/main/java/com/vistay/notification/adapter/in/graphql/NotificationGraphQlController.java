@@ -1,5 +1,6 @@
 package com.vistay.notification.adapter.in.graphql;
 
+import com.vistay.notification.application.NotificationAuthorizationService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -9,7 +10,6 @@ import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.SubscriptionMapping;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Controller;
 import reactor.core.publisher.Flux;
@@ -17,21 +17,24 @@ import reactor.core.publisher.Flux;
 @Controller
 public class NotificationGraphQlController {
     private final JdbcClient jdbc;
+    private final NotificationAuthorizationService authorization;
 
-    public NotificationGraphQlController(JdbcClient jdbc) {
+    public NotificationGraphQlController(
+            JdbcClient jdbc,
+            NotificationAuthorizationService authorization) {
         this.jdbc = jdbc;
+        this.authorization = authorization;
     }
 
     @SubscriptionMapping
-    @PreAuthorize("hasAuthority('SCOPE_notifications:read')")
     public Flux<NotificationStreamEvent> notificationStream(
         @Argument String afterCursor,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        var accountId = accountId(jwt);
+        var recipient = authorization.requireOwnNotifications(jwt);
         var currentCursor = new AtomicLong(cursor(afterCursor));
         return Flux.interval(Duration.ZERO, Duration.ofSeconds(2))
-            .concatMap(ignored -> Flux.fromIterable(readAfter(accountId, currentCursor.get())))
+            .concatMap(ignored -> Flux.fromIterable(readAfter(recipient, currentCursor.get())))
             .doOnNext(notification -> currentCursor.set(notification.eventSequence()))
             .map(notification -> new NotificationStreamEvent(
                 Long.toString(notification.eventSequence()),
@@ -39,19 +42,22 @@ public class NotificationGraphQlController {
             ));
     }
 
-    private List<NotificationRow> readAfter(UUID accountId, long cursor) {
+    private List<NotificationRow> readAfter(
+            NotificationAuthorizationService.AuthorizedRecipient recipient,
+            long cursor) {
         return jdbc.sql("""
             SELECT n.event_sequence, n.id, n.notification_type, n.title, n.body,
                    n.created_at, n.read_at
             FROM notifications n
-            WHERE n.recipient_account_type = 'ADMIN'
+            WHERE n.recipient_account_type = :accountType
               AND n.recipient_user_id = :accountId
               AND n.event_sequence > :cursor
               AND n.status <> 'CANCELLED'
             ORDER BY n.event_sequence
             LIMIT 100
             """)
-            .param("accountId", accountId)
+            .param("accountType", recipient.accountType())
+            .param("accountId", recipient.accountId())
             .param("cursor", cursor)
             .query(NotificationRow.class)
             .list();
@@ -73,13 +79,6 @@ public class NotificationGraphQlController {
         return notificationType != null && notificationType.contains("SECURITY")
             ? "SECURITY"
             : "WELCOME";
-    }
-
-    private static UUID accountId(Jwt jwt) {
-        if (jwt == null) {
-            throw new IllegalArgumentException("Authentication is required");
-        }
-        return UUID.fromString(jwt.getSubject());
     }
 
     private static long cursor(String cursor) {
