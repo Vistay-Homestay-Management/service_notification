@@ -267,6 +267,7 @@ public class NotificationInboxService {
         if (cursorSupplied) {
             validateCursor(afterCursor, watermark);
         }
+        closeStaleStreams(recipient);
         Long active = jdbc.sql("""
             SELECT count(*)
             FROM notification_stream_connections
@@ -295,6 +296,23 @@ public class NotificationInboxService {
             .query(UUID.class)
             .single();
         return new StreamSession(id, recipient, afterCursor);
+    }
+
+    private void closeStaleStreams(
+            NotificationAuthorizationService.AuthorizedRecipient recipient) {
+        jdbc.sql("""
+            UPDATE notification_stream_connections
+            SET state = CASE WHEN opened_at + (max_duration_seconds * interval '1 second') <= now()
+                             THEN 'EXPIRED' ELSE 'CLOSED' END,
+                closed_at = now(), close_reason = 'STALE_HEARTBEAT'
+            WHERE recipient_account_type = :accountType
+              AND recipient_user_id = :accountId
+              AND state = 'ACTIVE'
+              AND last_heartbeat_at < now() - interval '30 seconds'
+            """)
+            .param("accountType", recipient.accountType())
+            .param("accountId", recipient.accountId())
+            .update();
     }
 
     @Transactional

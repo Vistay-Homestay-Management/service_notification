@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -20,6 +22,7 @@ import reactor.core.publisher.Flux;
 
 @Controller
 public class NotificationGraphQlController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(NotificationGraphQlController.class);
     private final JdbcClient jdbc;
     private final NotificationAuthorizationService authorization;
     private final NotificationInboxService inbox;
@@ -73,6 +76,7 @@ public class NotificationGraphQlController {
                 notification.notificationRevision(), "AT_LEAST_ONCE"
             ))
             .take(maxDuration)
+            .doOnError(error -> LOGGER.error("Notification stream failed", error))
             .doOnNext(event -> {
                 if (session != null) {
                     inbox.heartbeat(session, currentCursor.get(), 1);
@@ -92,7 +96,7 @@ public class NotificationGraphQlController {
             SELECT n.event_sequence, n.id, n.notification_type, n.title, n.body,
                    n.category, n.priority, n.template_key, n.template_revision,
                    n.policy_revision, n.inbox_revision, n.notification_revision,
-                   n.source_event_version, n.reference_type, n.reference_id,
+                   n.source_event_version AS event_version, n.reference_type, n.reference_id,
                    n.action_url, n.created_at, n.read_at, n.read_revision,
                    COALESCE((
                        SELECT string_agg(d.channel, ',' ORDER BY d.channel)
