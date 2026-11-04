@@ -3,9 +3,13 @@ package com.vistay.notification.application;
 import com.vistay.notification.application.NotificationEventRouteRegistry.EventRoute;
 import com.vistay.notification.application.NotificationRecipientResolver.RecipientResolutionException;
 import com.vistay.notification.application.NotificationRecipientResolver.ResolvedRecipient;
+import com.vistay.notification.application.NotificationChannelDeliveryPolicy.DeviceSnapshot;
+import com.vistay.notification.application.NotificationChannelDeliveryPolicy.Preference;
+import com.vistay.notification.application.NotificationChannelDeliveryPolicy.PreferenceSnapshot;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +46,8 @@ public class DomainEventNotificationService {
     private final ObjectMapper json;
     private final NotificationEventRouteRegistry routes;
     private final NotificationRecipientResolver recipients;
+    private final NotificationPreferenceService preferences;
+    private final NotificationChannelDeliveryService channelDeliveries;
     private final boolean pushFeatureEnabled;
 
     public DomainEventNotificationService(
@@ -49,7 +55,16 @@ public class DomainEventNotificationService {
             ObjectMapper json,
             NotificationEventRouteRegistry routes,
             NotificationRecipientResolver recipients) {
-        this(jdbc, json, routes, recipients, false);
+        this(jdbc, json, routes, recipients, false, null, null);
+    }
+
+    public DomainEventNotificationService(
+            JdbcClient jdbc,
+            ObjectMapper json,
+            NotificationEventRouteRegistry routes,
+            NotificationRecipientResolver recipients,
+            @Value("${vistay.notifications.push-enabled:false}") boolean pushFeatureEnabled) {
+        this(jdbc, json, routes, recipients, pushFeatureEnabled, null, null);
     }
 
     @Autowired
@@ -58,11 +73,26 @@ public class DomainEventNotificationService {
             ObjectMapper json,
             NotificationEventRouteRegistry routes,
             NotificationRecipientResolver recipients,
+            NotificationPreferenceService preferences,
+            NotificationChannelDeliveryService channelDeliveries,
             @Value("${vistay.notifications.push-enabled:false}") boolean pushFeatureEnabled) {
+        this(jdbc, json, routes, recipients, pushFeatureEnabled, preferences, channelDeliveries);
+    }
+
+    private DomainEventNotificationService(
+            JdbcClient jdbc,
+            ObjectMapper json,
+            NotificationEventRouteRegistry routes,
+            NotificationRecipientResolver recipients,
+            boolean pushFeatureEnabled,
+            NotificationPreferenceService preferences,
+            NotificationChannelDeliveryService channelDeliveries) {
         this.jdbc = jdbc;
         this.json = json;
         this.routes = routes;
         this.recipients = recipients;
+        this.preferences = preferences;
+        this.channelDeliveries = channelDeliveries;
         this.pushFeatureEnabled = pushFeatureEnabled;
     }
 
@@ -98,9 +128,12 @@ public class DomainEventNotificationService {
             validateData(envelope.data(), route);
             ResolvedRecipient recipient = recipients.resolve(envelope.data(), route);
             return createDurableNotification(envelope, route, recipient, payloadFingerprint);
-        } catch (IntakeException | RecipientResolutionException rejected) {
+        } catch (IntakeException | RecipientResolutionException | NotificationCommandException rejected) {
             String code = rejected instanceof IntakeException intake
-                ? intake.code() : ((RecipientResolutionException) rejected).code();
+                ? intake.code()
+                : rejected instanceof RecipientResolutionException recipientFailure
+                    ? recipientFailure.code()
+                    : ((NotificationCommandException) rejected).code();
             return quarantine(envelope, null, route, payloadFingerprint, code,
                 metadata(code, envelope));
         }
@@ -119,6 +152,16 @@ public class DomainEventNotificationService {
             route.routeKey(), recipientType, recipientId,
             envelope.aggregateId().toString(), Long.toString(envelope.aggregateVersion()));
         Projection projection = project(envelope, route);
+
+        NotificationChannelDeliveryService.DeliveryEvaluation channelEvaluation = null;
+        if (channelDeliveries != null && preferences != null) {
+            channelEvaluation = channelDeliveries.evaluate(
+                route,
+                channelDeliveries.resolvePolicy(route, pushFeatureEnabled),
+                preferenceSnapshot(recipient),
+                new DeviceSnapshot(recipient.deviceReference(), recipient.deviceReference() != null, "opaque"),
+                Instant.now());
+        }
 
         IntakeRow businessReplay = findByBusinessKey(businessKey);
         if (businessReplay != null) {
@@ -249,12 +292,26 @@ public class DomainEventNotificationService {
             .param("snapshotFingerprint", recipient.snapshotFingerprint())
             .update();
 
-        List<String> optionalChannels = pushFeatureEnabled ? route.optionalChannels() : List.of();
-        List<String> channels = new ArrayList<>(route.requiredChannels());
-        channels.addAll(optionalChannels);
+        List<String> optionalChannels;
+        List<String> channels;
+        if (channelEvaluation == null) {
+            optionalChannels = pushFeatureEnabled ? route.optionalChannels() : List.of();
+            channels = new ArrayList<>(route.requiredChannels());
+            channels.addAll(optionalChannels);
+        } else {
+            channels = channelEvaluation.templates().stream()
+                .map(selected -> selected.intent().channel())
+                .toList();
+            optionalChannels = channels.stream()
+                .filter(channel -> !route.requiredChannels().contains(channel))
+                .toList();
+        }
         for (String channel : channels) {
             insertDelivery(notification.id(), recipient, route, channel,
                 route.requiredChannels().contains(channel));
+        }
+        if (channelEvaluation != null) {
+            channelDeliveries.freeze(notification.id(), channelEvaluation);
         }
 
         jdbc.sql("""
@@ -293,6 +350,16 @@ public class DomainEventNotificationService {
         return new IngestResult(Outcome.CREATED, "CREATED", notification.id());
     }
 
+    private PreferenceSnapshot preferenceSnapshot(ResolvedRecipient recipient) {
+        var connection = preferences.get(recipient.accountType().name(), recipient.accountId());
+        Map<String, Preference> values = new LinkedHashMap<>();
+        connection.nodes().forEach(value -> values.put(
+            value.notificationType() + "|" + value.channel(),
+            new Preference(value.channel(), value.enabled(), value.quietHoursStart(),
+                value.quietHoursEnd(), value.timeZoneId())));
+        return new PreferenceSnapshot(connection.revision(), values);
+    }
+
     private void insertDelivery(
             UUID notificationId,
             ResolvedRecipient recipient,
@@ -302,21 +369,41 @@ public class DomainEventNotificationService {
         String providerKey = fingerprint(notificationId.toString(), channel, "1");
         jdbc.sql("""
                 INSERT INTO notification_deliveries(
-                    notification_id, channel, required, template_revision,
-                    policy_revision, delivery_revision, provider_idempotency_key,
-                    contact_snapshot_revision, destination_resolution_state, status
+                    notification_id, channel, required, template_key, template_revision,
+                    policy_revision, preference_revision, delivery_revision,
+                    provider_idempotency_key, contact_snapshot_revision,
+                    feature_policy_snapshot, device_reference,
+                    destination_resolution_state, status
                 ) VALUES (
-                    :notificationId, :channel, :required, 1, 1, 1,
-                    :providerIdempotencyKey, :contactSnapshotRevision, 'PENDING', 'PENDING'
+                    :notificationId, :channel, :required, :templateKey, 1, 1, 1, 1,
+                    :providerIdempotencyKey, :contactSnapshotRevision,
+                    CAST(:featurePolicySnapshot AS jsonb), :deviceReference,
+                    CASE WHEN :channel = 'IN_APP' THEN 'RESOLVED' ELSE 'PENDING' END, 'PENDING'
                 )
                 ON CONFLICT (notification_id, channel) DO NOTHING
                 """)
             .param("notificationId", notificationId)
             .param("channel", channel)
             .param("required", required)
+            .param("templateKey", route.templateKey())
             .param("providerIdempotencyKey", providerKey)
             .param("contactSnapshotRevision", recipient.contactSnapshotRevision())
+            .param("featurePolicySnapshot", featurePolicySnapshot(route))
+            .param("deviceReference", recipient.deviceReference())
             .update();
+    }
+
+    private String featurePolicySnapshot(EventRoute route) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("pushEnabled", pushFeatureEnabled);
+        snapshot.put("routeAllowsPush", route.optionalChannels().contains("PUSH"));
+        snapshot.put("requiredChannels", route.requiredChannels());
+        snapshot.put("optionalChannels", route.optionalChannels());
+        try {
+            return json.writeValueAsString(snapshot);
+        } catch (Exception serializationFailure) {
+            throw new IntakeException("SCHEMA_MISMATCH", "Feature policy snapshot failed");
+        }
     }
 
     private void updateIntake(UUID intakeId, String state, Long resolutionRevision, UUID notificationId) {
@@ -678,7 +765,7 @@ public class DomainEventNotificationService {
         return fingerprintValues(value);
     }
 
-    private static String fingerprint(String... values) {
+    static String fingerprint(String... values) {
         return fingerprintValues(values);
     }
 
