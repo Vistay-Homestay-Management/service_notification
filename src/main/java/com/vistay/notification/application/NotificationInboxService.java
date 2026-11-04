@@ -58,12 +58,13 @@ public class NotificationInboxService {
                    n.category, n.priority, n.template_key, n.template_revision,
                    n.policy_revision, n.inbox_revision, n.notification_revision,
                    n.reference_type, n.reference_id, n.action_url, n.created_at,
-                   n.read_at, n.read_revision,
+                   n.read_at,
                    COALESCE((
                        SELECT string_agg(d.channel, ',' ORDER BY d.channel)
                        FROM notification_deliveries d
                        WHERE d.notification_id = n.id
-                   ), 'IN_APP') AS channels_csv
+                   ), 'IN_APP') AS channels_csv,
+                   n.read_revision
             FROM notifications n
             WHERE n.recipient_account_type = :accountType
               AND n.recipient_user_id = :accountId
@@ -200,12 +201,13 @@ public class NotificationInboxService {
                    n.category, n.priority, n.template_key, n.template_revision,
                    n.policy_revision, n.inbox_revision, n.notification_revision,
                    n.reference_type, n.reference_id, n.action_url, n.created_at,
-                   n.read_at, n.read_revision,
+                   n.read_at,
                    COALESCE((
                        SELECT string_agg(d.channel, ',' ORDER BY d.channel)
                        FROM notification_deliveries d
                        WHERE d.notification_id = n.id
-                   ), 'IN_APP') AS channels_csv
+                   ), 'IN_APP') AS channels_csv,
+                   n.read_revision
             FROM notifications n
             WHERE n.recipient_account_type = :accountType
               AND n.recipient_user_id = :accountId
@@ -402,12 +404,13 @@ public class NotificationInboxService {
                    n.category, n.priority, n.template_key, n.template_revision,
                    n.policy_revision, n.inbox_revision, n.notification_revision,
                    n.reference_type, n.reference_id, n.action_url, n.created_at,
-                   n.read_at, n.read_revision,
+                   n.read_at,
                    COALESCE((
                        SELECT string_agg(d.channel, ',' ORDER BY d.channel)
                        FROM notification_deliveries d
                        WHERE d.notification_id = n.id
-                   ), 'IN_APP') AS channels_csv
+                   ), 'IN_APP') AS channels_csv,
+                   n.read_revision
             FROM notifications n
             WHERE n.id = :notificationId
               AND n.recipient_account_type = :accountType
