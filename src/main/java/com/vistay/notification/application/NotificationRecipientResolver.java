@@ -69,16 +69,23 @@ public class NotificationRecipientResolver {
         }
         try {
             var snapshot = authorizations.resolveRecipient(accountType, accountId);
+            String deviceReference = firstText(data, "deviceReference");
+            if (deviceReference != null && !deviceReference.matches("[A-Za-z0-9._:-]{1,180}")) {
+                throw new RecipientResolutionException("INVALID_CONTACT", "Device reference is invalid");
+            }
+            Long contactSnapshotRevision = positiveOptionalLong(data, "contactSnapshotRevision");
             String fingerprint = fingerprint(accountType.name(), accountId.toString(),
                 snapshot.profileId().toString(), Long.toString(snapshot.authorizationVersion()),
-                route.routeKey());
+                route.routeKey(), deviceReference,
+                contactSnapshotRevision == null ? null : contactSnapshotRevision.toString());
             return new ResolvedRecipient(
                 accountType,
                 accountId,
                 snapshot.profileId(),
                 snapshot.authorizationVersion(),
                 snapshot.authorizationVersion(),
-                null,
+                contactSnapshotRevision,
+                deviceReference,
                 fingerprint,
                 RESOLVE_PERMISSION
             );
@@ -112,6 +119,17 @@ public class NotificationRecipientResolver {
         return null;
     }
 
+    private static Long positiveOptionalLong(JsonNode data, String field) {
+        JsonNode value = data.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (!value.isIntegralNumber() || value.asLong() < 1) {
+            throw new RecipientResolutionException("INVALID_CONTACT", field + " must be positive");
+        }
+        return value.asLong();
+    }
+
     static String fingerprint(String... values) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
@@ -132,6 +150,7 @@ public class NotificationRecipientResolver {
             long authorizationVersion,
             long resolutionRevision,
             Long contactSnapshotRevision,
+            String deviceReference,
             String snapshotFingerprint,
             String resolutionPermission) {}
 

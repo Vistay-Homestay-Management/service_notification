@@ -3,6 +3,16 @@ scalar DateTime
 
 type Query {
   notificationServiceInfo: NotificationServiceInfo!
+  notificationPreferences: NotificationPreferenceConnection!
+  notificationTemplates(input: NotificationTemplateQueryInput): NotificationTemplateConnection!
+}
+
+type Mutation {
+  updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferenceConnection!
+  saveNotificationTemplateDraft(input: PublishNotificationTemplateInput!): NotificationTemplate!
+  previewNotificationTemplate(input: PreviewNotificationTemplateInput!): NotificationTemplatePreview!
+  publishNotificationTemplate(input: PublishNotificationTemplateInput!): NotificationTemplate!
+  retireNotificationTemplate(input: RetireNotificationTemplateInput!): NotificationTemplate!
 }
 
 type NotificationServiceInfo {
@@ -29,6 +39,68 @@ type Notification {
   readAt: DateTime
 }
 
+type NotificationPreferenceConnection {
+  nodes: [NotificationPreference!]!
+  revision: Int!
+}
+
+type NotificationPreference {
+  id: ID!
+  notificationType: String!
+  channel: NotificationChannel!
+  enabled: Boolean!
+  required: Boolean!
+  quietHours: QuietHours
+  timeZoneId: String!
+  revision: Int!
+  updatedAt: DateTime!
+}
+
+type QuietHours {
+  start: String!
+  end: String!
+}
+
+type NotificationTemplateConnection {
+  nodes: [NotificationTemplate!]!
+  pageInfo: NotificationPageInfo!
+}
+
+type NotificationPageInfo {
+  hasNextPage: Boolean!
+  endCursor: Cursor
+  startCursor: Cursor
+  cursorState: NotificationCursorState!
+  retainedFrom: Cursor
+  reconcileFrom: Cursor
+}
+
+type NotificationTemplate {
+  id: ID!
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  status: NotificationTemplateStatus!
+  revision: Int!
+  policyRevision: Int!
+  requiredVariables: [String!]!
+  subject: String
+  body: String
+  immutable: Boolean!
+  createdAt: DateTime!
+  publishedAt: DateTime
+  retiredAt: DateTime
+}
+
+type NotificationTemplatePreview {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  revision: Int!
+  subject: String
+  body: String!
+}
+
 enum NotificationCategory {
   WELCOME
   SECURITY
@@ -42,4 +114,75 @@ enum NotificationChannel {
   IN_APP
   EMAIL
   PUSH
+}
+
+enum NotificationTemplateStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum NotificationCursorState {
+  ACTIVE
+  EXPIRED
+  INVALID
+  RESYNC_REQUIRED
+}
+
+input NotificationTemplateQueryInput {
+  templateKey: String
+  channel: NotificationChannel
+  status: NotificationTemplateStatus
+  afterCursor: Cursor
+  limit: Int = 25
+}
+
+input QuietHoursInput {
+  start: String!
+  end: String!
+}
+
+input NotificationPreferenceUpdateInput {
+  notificationType: String!
+  channel: NotificationChannel!
+  enabled: Boolean!
+  quietHours: QuietHoursInput
+  timeZoneId: String!
+  expectedVersion: Int!
+}
+
+input UpdateNotificationPreferencesInput {
+  updates: [NotificationPreferenceUpdateInput!]!
+  idempotencyKey: String!
+}
+
+input PublishNotificationTemplateInput {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  subject: String
+  body: String!
+  requiredVariables: [String!]!
+  policyRevision: Int!
+  expectedVersion: Int
+  idempotencyKey: String!
+}
+
+input TemplatePreviewVariableInput {
+  name: String!
+  value: String!
+}
+
+input PreviewNotificationTemplateInput {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  variables: [TemplatePreviewVariableInput!]!
+}
+
+input RetireNotificationTemplateInput {
+  templateId: ID!
+  expectedVersion: Int!
+  reason: String!
+  idempotencyKey: String!
 }

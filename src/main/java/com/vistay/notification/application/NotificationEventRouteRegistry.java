@@ -30,7 +30,8 @@ public class NotificationEventRouteRegistry {
         "securityNotice",
         "publicationRevision", "inventoryRevision", "blockVersion", "snapshotSchemaVersion",
         "profileFingerprint", "previousPublicationId", "commandId", "startDate",
-        "endDateExclusive", "blockType", "mismatchReason", "notificationId"
+        "endDateExclusive", "blockType", "mismatchReason", "notificationId",
+        "deviceReference", "contactSnapshotRevision", "recipientKind"
     );
 
     private static final Set<String> SENSITIVE_FIELDS = Set.of(

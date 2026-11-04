@@ -115,6 +115,9 @@ vistay:
     domain-event-group: ${DOMAIN_EVENT_CONSUMER_GROUP:${KAFKA_CONSUMER_GROUP:vistay-notification}-domain-inbox-v3}
   notifications:
     push-enabled: ${NOTIFICATION_PUSH_ENABLED:false}
+    delivery-worker-enabled: ${NOTIFICATION_DELIVERY_WORKER_ENABLED:false}
+    delivery-poll-delay-ms: ${NOTIFICATION_DELIVERY_POLL_DELAY_MS:1000}
+    provider-timeout: ${NOTIFICATION_PROVIDER_TIMEOUT:2s}
   authorization:
     local-cache-ttl: ${AUTHORIZATION_LOCAL_CACHE_TTL:30s}
     grpc-deadline: ${AUTHORIZATION_GRPC_DEADLINE:2s}
