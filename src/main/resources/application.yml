@@ -111,6 +111,15 @@ vistay:
   topics:
     profile-provisioned: ${PROFILE_PROVISIONED_TOPIC:vistay.user.profile-provisioned.v1}
     authorization-changed: ${AUTHORIZATION_CHANGED_TOPIC:vistay.user.authorization-changed.v1}
+    domain-event-pattern: ${DOMAIN_EVENT_TOPIC_PATTERN:(vistay\.(auth|booking|operations|finance|payment|system)\..*)\.v[0-9]+}
+    domain-event-group: ${DOMAIN_EVENT_CONSUMER_GROUP:${KAFKA_CONSUMER_GROUP:vistay-notification}-domain-inbox-v3}
+  notifications:
+    push-enabled: ${NOTIFICATION_PUSH_ENABLED:false}
+    delivery-worker-enabled: ${NOTIFICATION_DELIVERY_WORKER_ENABLED:false}
+    delivery-poll-delay-ms: ${NOTIFICATION_DELIVERY_POLL_DELAY_MS:1000}
+    provider-timeout: ${NOTIFICATION_PROVIDER_TIMEOUT:2s}
+    stream-max-duration: ${NOTIFICATION_STREAM_MAX_DURATION:30m}
+    stream-poll-interval: ${NOTIFICATION_STREAM_POLL_INTERVAL:2s}
   authorization:
     local-cache-ttl: ${AUTHORIZATION_LOCAL_CACHE_TTL:30s}
     grpc-deadline: ${AUTHORIZATION_GRPC_DEADLINE:2s}

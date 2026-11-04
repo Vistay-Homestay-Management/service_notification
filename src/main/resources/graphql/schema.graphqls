@@ -3,6 +3,25 @@ scalar DateTime
 
 type Query {
   notificationServiceInfo: NotificationServiceInfo!
+  notificationInbox(input: NotificationInboxInput): NotificationConnection!
+  unreadNotificationCount: UnreadNotificationCount!
+  notificationPreferences: NotificationPreferenceConnection!
+  notificationTemplates(input: NotificationTemplateQueryInput): NotificationTemplateConnection!
+  notificationDelivery(id: ID!): NotificationDelivery!
+  notificationProviderHealth: [NotificationProviderHealth!]!
+  notificationRecipientExceptions(input: RecipientExceptionQueryInput): RecipientExceptionConnection!
+}
+
+type Mutation {
+  markNotificationRead(input: MarkNotificationReadInput!): Notification!
+  markAllNotificationsRead(input: MarkAllNotificationsReadInput!): MarkAllNotificationsReadPayload!
+  resolveNotificationRecipientException(input: ResolveRecipientExceptionInput!): NotificationRecipientException!
+  updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferenceConnection!
+  saveNotificationTemplateDraft(input: PublishNotificationTemplateInput!): NotificationTemplate!
+  previewNotificationTemplate(input: PreviewNotificationTemplateInput!): NotificationTemplatePreview!
+  publishNotificationTemplate(input: PublishNotificationTemplateInput!): NotificationTemplate!
+  retireNotificationTemplate(input: RetireNotificationTemplateInput!): NotificationTemplate!
+  retryNotificationDelivery(input: RetryNotificationDeliveryInput!): NotificationDelivery!
 }
 
 type NotificationServiceInfo {
@@ -17,6 +36,9 @@ type Subscription {
 type NotificationStreamEvent {
   cursor: Cursor!
   notification: Notification!
+  eventVersion: Int
+  notificationRevision: Int
+  deliveryGuarantee: NotificationDeliveryGuarantee
 }
 
 type Notification {
@@ -27,15 +49,356 @@ type Notification {
   channels: [NotificationChannel!]!
   createdAt: DateTime!
   readAt: DateTime
+  notificationType: String
+  priority: NotificationPriority
+  reference: NotificationReference
+  templateKey: String
+  templateRevision: Int
+  policyRevision: Int
+  inboxRevision: Int
+  requiredChannels: [NotificationChannel!]!
+  optionalChannels: [NotificationChannel!]!
+  version: Int
+}
+
+type NotificationReference {
+  type: String!
+  id: ID!
+  actionUrl: String
+}
+
+type NotificationConnection {
+  nodes: [Notification!]!
+  pageInfo: NotificationPageInfo!
+  unread: UnreadNotificationCount!
+}
+
+type UnreadNotificationCount {
+  count: Int!
+  asOfCursor: Cursor!
+  inboxRevision: Int!
+}
+
+type MarkAllNotificationsReadPayload {
+  markedCount: Int!
+  throughCursor: Cursor!
+  inboxRevision: Int!
+}
+
+type NotificationPreferenceConnection {
+  nodes: [NotificationPreference!]!
+  revision: Int!
+}
+
+type NotificationPreference {
+  id: ID!
+  notificationType: String!
+  channel: NotificationChannel!
+  enabled: Boolean!
+  required: Boolean!
+  quietHours: QuietHours
+  timeZoneId: String!
+  revision: Int!
+  updatedAt: DateTime!
+}
+
+type QuietHours {
+  start: String!
+  end: String!
+}
+
+type NotificationTemplateConnection {
+  nodes: [NotificationTemplate!]!
+  pageInfo: NotificationPageInfo!
+}
+
+type NotificationPageInfo {
+  hasNextPage: Boolean!
+  endCursor: Cursor
+  startCursor: Cursor
+  cursorState: NotificationCursorState!
+  retainedFrom: Cursor
+  reconcileFrom: Cursor
+}
+
+type NotificationTemplate {
+  id: ID!
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  status: NotificationTemplateStatus!
+  revision: Int!
+  policyRevision: Int!
+  requiredVariables: [String!]!
+  subject: String
+  body: String
+  immutable: Boolean!
+  createdAt: DateTime!
+  publishedAt: DateTime
+  retiredAt: DateTime
+}
+
+type NotificationTemplatePreview {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  revision: Int!
+  subject: String
+  body: String!
+}
+
+type NotificationDelivery {
+  id: ID!
+  notificationId: ID!
+  channel: NotificationChannel!
+  status: NotificationDeliveryStatus!
+  provider: String
+  templateRevision: Int
+  policyRevision: Int
+  destinationMasked: String
+  contactSnapshotRevision: Int
+  attemptCount: Int!
+  maximumAttempts: Int!
+  nextAttemptAt: DateTime
+  lastErrorCode: String
+  lastErrorClass: NotificationErrorClass
+  providerMessageId: String
+  revision: Int!
+  updatedAt: DateTime!
+}
+
+type NotificationProviderHealth {
+  provider: String!
+  status: NotificationProviderStatus!
+  circuitState: NotificationCircuitState!
+  failureRate: Float!
+  latencyMilliseconds: Int!
+  retryAfterSeconds: Int
+  checkedAt: DateTime!
+}
+
+type NotificationRecipientException {
+  id: ID!
+  notificationId: ID!
+  recipientAccountId: ID!
+  recipientKind: NotificationRecipientKind!
+  exceptionType: NotificationExceptionType!
+  status: NotificationExceptionStatus!
+  reasonCode: String!
+  resolutionAction: NotificationResolutionAction
+  destinationMasked: String
+  contactSnapshotRevision: Int
+  revision: Int!
+  createdAt: DateTime!
+  resolvedAt: DateTime
+}
+
+type RecipientExceptionConnection {
+  nodes: [NotificationRecipientException!]!
+  pageInfo: NotificationPageInfo!
 }
 
 enum NotificationCategory {
   WELCOME
   SECURITY
+  BOOKING
+  OPERATIONS
+  FINANCE
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 enum NotificationChannel {
   IN_APP
   EMAIL
   PUSH
+}
+
+enum NotificationTemplateStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum NotificationCursorState {
+  ACTIVE
+  EXPIRED
+  INVALID
+  RESYNC_REQUIRED
+}
+
+enum NotificationDeliveryGuarantee {
+  AT_LEAST_ONCE
+}
+
+input NotificationTemplateQueryInput {
+  templateKey: String
+  channel: NotificationChannel
+  status: NotificationTemplateStatus
+  afterCursor: Cursor
+  limit: Int = 25
+}
+
+input NotificationInboxInput {
+  afterCursor: Cursor
+  limit: Int = 25
+  unreadOnly: Boolean = false
+  category: NotificationCategory
+}
+
+input MarkNotificationReadInput {
+  notificationId: ID!
+  expectedVersion: Int!
+  idempotencyKey: String!
+}
+
+input MarkAllNotificationsReadInput {
+  throughCursor: Cursor!
+  idempotencyKey: String!
+}
+
+input RecipientExceptionQueryInput {
+  status: NotificationExceptionStatus
+  exceptionType: NotificationExceptionType
+  afterCursor: Cursor
+  limit: Int = 25
+}
+
+input ResolveRecipientExceptionInput {
+  exceptionId: ID!
+  action: NotificationResolutionAction!
+  expectedVersion: Int!
+  reason: String!
+  idempotencyKey: String!
+}
+
+input QuietHoursInput {
+  start: String!
+  end: String!
+}
+
+input NotificationPreferenceUpdateInput {
+  notificationType: String!
+  channel: NotificationChannel!
+  enabled: Boolean!
+  quietHours: QuietHoursInput
+  timeZoneId: String!
+  expectedVersion: Int!
+}
+
+input UpdateNotificationPreferencesInput {
+  updates: [NotificationPreferenceUpdateInput!]!
+  idempotencyKey: String!
+}
+
+input PublishNotificationTemplateInput {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  subject: String
+  body: String!
+  requiredVariables: [String!]!
+  policyRevision: Int!
+  expectedVersion: Int
+  idempotencyKey: String!
+}
+
+input TemplatePreviewVariableInput {
+  name: String!
+  value: String!
+}
+
+input PreviewNotificationTemplateInput {
+  templateKey: String!
+  channel: NotificationChannel!
+  locale: String!
+  variables: [TemplatePreviewVariableInput!]!
+}
+
+input RetireNotificationTemplateInput {
+  templateId: ID!
+  expectedVersion: Int!
+  reason: String!
+  idempotencyKey: String!
+}
+
+input RetryNotificationDeliveryInput {
+  deliveryId: ID!
+  expectedVersion: Int!
+  reason: String!
+  idempotencyKey: String!
+}
+
+enum NotificationDeliveryStatus {
+  QUEUED
+  PROCESSING
+  ACCEPTED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  BOUNCED
+  DEAD_LETTERED
+  CANCELLED
+}
+
+enum NotificationErrorClass {
+  TRANSIENT
+  PERMANENT
+  RATE_LIMITED
+  PROVIDER_OUTAGE
+  INVALID_CONTACT
+  BOUNCED
+  UNKNOWN
+}
+
+enum NotificationProviderStatus {
+  HEALTHY
+  DEGRADED
+  UNAVAILABLE
+}
+
+enum NotificationCircuitState {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
+enum NotificationRecipientKind {
+  DIRECT_ACCOUNT
+  ORGANIZATION_ROLE
+  BRANCH_ROLE
+  BOOKING_PARTY
+  EXPLICIT_SUBSCRIPTION
+}
+
+enum NotificationExceptionType {
+  NO_RECIPIENT
+  AMBIGUOUS_RECIPIENT
+  CROSS_PARTITION
+  MISSING_CONTACT
+  INVALID_CONTACT
+  UNVERIFIED_CONTACT
+  OPTIONAL_SUPPRESSED
+  DEPENDENCY_UNAVAILABLE
+}
+
+enum NotificationExceptionStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+  EXPIRED
+}
+
+enum NotificationResolutionAction {
+  RE_RESOLVE
+  SUPPRESS
+  ROUTE_ALTERNATE
+  CANCEL
 }
