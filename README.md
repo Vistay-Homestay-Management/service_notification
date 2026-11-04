@@ -33,3 +33,9 @@ ORDER BY updated_at;
 
 Retry only through the versioned notification operation after confirming the
 template, preference, contact-snapshot, and provider dependency state.
+
+V5 adds a `SKIP LOCKED` lease/heartbeat, exponential bounded backoff with
+jitter, provider circuit state, and an immutable dead-letter/repair history.
+Expired leases are returned to the queue; a dead-lettered delivery is not
+retried until an authorized repair command supplies a reason, expected
+delivery revision, and idempotency key.
