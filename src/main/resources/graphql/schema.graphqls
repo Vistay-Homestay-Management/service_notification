@@ -9,11 +9,13 @@ type Query {
   notificationTemplates(input: NotificationTemplateQueryInput): NotificationTemplateConnection!
   notificationDelivery(id: ID!): NotificationDelivery!
   notificationProviderHealth: [NotificationProviderHealth!]!
+  notificationRecipientExceptions(input: RecipientExceptionQueryInput): RecipientExceptionConnection!
 }
 
 type Mutation {
   markNotificationRead(input: MarkNotificationReadInput!): Notification!
   markAllNotificationsRead(input: MarkAllNotificationsReadInput!): MarkAllNotificationsReadPayload!
+  resolveNotificationRecipientException(input: ResolveRecipientExceptionInput!): NotificationRecipientException!
   updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferenceConnection!
   saveNotificationTemplateDraft(input: PublishNotificationTemplateInput!): NotificationTemplate!
   previewNotificationTemplate(input: PreviewNotificationTemplateInput!): NotificationTemplatePreview!
@@ -175,6 +177,27 @@ type NotificationProviderHealth {
   checkedAt: DateTime!
 }
 
+type NotificationRecipientException {
+  id: ID!
+  notificationId: ID!
+  recipientAccountId: ID!
+  recipientKind: NotificationRecipientKind!
+  exceptionType: NotificationExceptionType!
+  status: NotificationExceptionStatus!
+  reasonCode: String!
+  resolutionAction: NotificationResolutionAction
+  destinationMasked: String
+  contactSnapshotRevision: Int
+  revision: Int!
+  createdAt: DateTime!
+  resolvedAt: DateTime
+}
+
+type RecipientExceptionConnection {
+  nodes: [NotificationRecipientException!]!
+  pageInfo: NotificationPageInfo!
+}
+
 enum NotificationCategory {
   WELCOME
   SECURITY
@@ -237,6 +260,21 @@ input MarkNotificationReadInput {
 
 input MarkAllNotificationsReadInput {
   throughCursor: Cursor!
+  idempotencyKey: String!
+}
+
+input RecipientExceptionQueryInput {
+  status: NotificationExceptionStatus
+  exceptionType: NotificationExceptionType
+  afterCursor: Cursor
+  limit: Int = 25
+}
+
+input ResolveRecipientExceptionInput {
+  exceptionId: ID!
+  action: NotificationResolutionAction!
+  expectedVersion: Int!
+  reason: String!
   idempotencyKey: String!
 }
 
@@ -330,4 +368,37 @@ enum NotificationCircuitState {
   CLOSED
   OPEN
   HALF_OPEN
+}
+
+enum NotificationRecipientKind {
+  DIRECT_ACCOUNT
+  ORGANIZATION_ROLE
+  BRANCH_ROLE
+  BOOKING_PARTY
+  EXPLICIT_SUBSCRIPTION
+}
+
+enum NotificationExceptionType {
+  NO_RECIPIENT
+  AMBIGUOUS_RECIPIENT
+  CROSS_PARTITION
+  MISSING_CONTACT
+  INVALID_CONTACT
+  UNVERIFIED_CONTACT
+  OPTIONAL_SUPPRESSED
+  DEPENDENCY_UNAVAILABLE
+}
+
+enum NotificationExceptionStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+  EXPIRED
+}
+
+enum NotificationResolutionAction {
+  RE_RESOLVE
+  SUPPRESS
+  ROUTE_ALTERNATE
+  CANCEL
 }
