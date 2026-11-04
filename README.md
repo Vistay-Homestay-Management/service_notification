@@ -50,3 +50,26 @@ The notification stream is bounded by duration and polling interval, records
 connection/heartbeat metadata, limits concurrent connections per recipient,
 and advertises at-least-once delivery so clients can resume and deduplicate by
 notification id plus inbox revision.
+
+V7 records recipient rules, candidate selection, per-channel allow/deny
+decisions, purpose-bound contact snapshot references, and immutable resolution
+history. Invalid or unavailable required contacts become classified exceptions
+with redacted evidence; the operator repair boundary supports optimistic,
+idempotent re-resolution/suppression decisions without editing User-owned
+canonical contacts. Raw destinations and provider payloads are never stored in
+resolution metadata or emitted by the GraphQL exception queue.
+
+Safe repair inspection is bounded to redacted state:
+
+```sql
+SELECT id, exception_sequence, notification_id, recipient_kind,
+       exception_type, status, reason_code, contact_snapshot_revision, revision
+FROM app.notification_recipient_exceptions
+WHERE status IN ('OPEN', 'IN_REVIEW')
+ORDER BY exception_sequence
+LIMIT 100;
+```
+
+Repair only through `resolveNotificationRecipientException` with an expected
+revision, purpose/reason, and idempotency key; re-resolution creates a linked
+child revision instead of rewriting the prior evidence.

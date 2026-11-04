@@ -48,6 +48,7 @@ public class DomainEventNotificationService {
     private final NotificationRecipientResolver recipients;
     private final NotificationPreferenceService preferences;
     private final NotificationChannelDeliveryService channelDeliveries;
+    private final RecipientResolutionService resolutionService;
     private final boolean pushFeatureEnabled;
 
     public DomainEventNotificationService(
@@ -55,7 +56,7 @@ public class DomainEventNotificationService {
             ObjectMapper json,
             NotificationEventRouteRegistry routes,
             NotificationRecipientResolver recipients) {
-        this(jdbc, json, routes, recipients, false, null, null);
+        this(jdbc, json, routes, recipients, false, null, null, null);
     }
 
     public DomainEventNotificationService(
@@ -64,7 +65,7 @@ public class DomainEventNotificationService {
             NotificationEventRouteRegistry routes,
             NotificationRecipientResolver recipients,
             @Value("${vistay.notifications.push-enabled:false}") boolean pushFeatureEnabled) {
-        this(jdbc, json, routes, recipients, pushFeatureEnabled, null, null);
+        this(jdbc, json, routes, recipients, pushFeatureEnabled, null, null, null);
     }
 
     @Autowired
@@ -75,8 +76,10 @@ public class DomainEventNotificationService {
             NotificationRecipientResolver recipients,
             NotificationPreferenceService preferences,
             NotificationChannelDeliveryService channelDeliveries,
+            RecipientResolutionService resolutionService,
             @Value("${vistay.notifications.push-enabled:false}") boolean pushFeatureEnabled) {
-        this(jdbc, json, routes, recipients, pushFeatureEnabled, preferences, channelDeliveries);
+        this(jdbc, json, routes, recipients, pushFeatureEnabled, preferences,
+            channelDeliveries, resolutionService);
     }
 
     private DomainEventNotificationService(
@@ -86,13 +89,15 @@ public class DomainEventNotificationService {
             NotificationRecipientResolver recipients,
             boolean pushFeatureEnabled,
             NotificationPreferenceService preferences,
-            NotificationChannelDeliveryService channelDeliveries) {
+            NotificationChannelDeliveryService channelDeliveries,
+            RecipientResolutionService resolutionService) {
         this.jdbc = jdbc;
         this.json = json;
         this.routes = routes;
         this.recipients = recipients;
         this.preferences = preferences;
         this.channelDeliveries = channelDeliveries;
+        this.resolutionService = resolutionService;
         this.pushFeatureEnabled = pushFeatureEnabled;
     }
 
@@ -124,16 +129,26 @@ public class DomainEventNotificationService {
                 "CONFLICTING_REPLAY", metadata("CONFLICTING_REPLAY", envelope));
         }
 
+        RecipientResolutionService.ResolutionResult resolution = null;
         try {
             validateData(envelope.data(), route);
-            ResolvedRecipient recipient = recipients.resolve(envelope.data(), route);
-            return createDurableNotification(envelope, route, recipient, payloadFingerprint);
+            ResolvedRecipient recipient;
+            if (resolutionService == null) {
+                recipient = recipients.resolve(envelope.data(), route);
+            } else {
+                resolution = resolutionService.resolve(envelope, envelope.data(), route);
+                recipient = resolution.recipient();
+            }
+            return createDurableNotification(envelope, route, recipient, payloadFingerprint, resolution);
         } catch (IntakeException | RecipientResolutionException | NotificationCommandException rejected) {
             String code = rejected instanceof IntakeException intake
                 ? intake.code()
                 : rejected instanceof RecipientResolutionException recipientFailure
                     ? recipientFailure.code()
                     : ((NotificationCommandException) rejected).code();
+            if (resolutionService != null && rejected instanceof RecipientResolutionException) {
+                resolutionService.recordFailure(envelope, envelope.data(), route, code);
+            }
             return quarantine(envelope, null, route, payloadFingerprint, code,
                 metadata(code, envelope));
         }
@@ -143,7 +158,8 @@ public class DomainEventNotificationService {
             DomainEventEnvelope envelope,
             EventRoute route,
             ResolvedRecipient recipient,
-            String payloadFingerprint) {
+            String payloadFingerprint,
+            RecipientResolutionService.ResolutionResult resolution) {
         String recipientType = recipient.accountType().name();
         String recipientId = recipient.accountId().toString();
         String deduplicationKey = fingerprint(
@@ -306,12 +322,23 @@ public class DomainEventNotificationService {
                 .filter(channel -> !route.requiredChannels().contains(channel))
                 .toList();
         }
+        if (resolution != null) {
+            channels = channels.stream()
+                .filter(resolution.allowedChannels()::contains)
+                .toList();
+            optionalChannels = channels.stream()
+                .filter(channel -> !route.requiredChannels().contains(channel))
+                .toList();
+        }
         for (String channel : channels) {
             insertDelivery(notification.id(), recipient, route, channel,
                 route.requiredChannels().contains(channel));
         }
         if (channelEvaluation != null) {
             channelDeliveries.freeze(notification.id(), channelEvaluation);
+        }
+        if (resolution != null) {
+            resolutionService.linkNotification(resolution, notification.id());
         }
 
         jdbc.sql("""
