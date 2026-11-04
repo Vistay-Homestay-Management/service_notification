@@ -39,3 +39,14 @@ jitter, provider circuit state, and an immutable dead-letter/repair history.
 Expired leases are returned to the queue; a dead-lettered delivery is not
 retried until an authorized repair command supplies a reason, expected
 delivery revision, and idempotency key.
+
+V6 makes the recipient inbox durable. Inbox pages and unread counts are scoped
+ by the authenticated recipient and expose an exclusive cursor with retained
+ watermark metadata. Mark-read and mark-all-read commands use optimistic
+ notification revisions, durable read receipts, and idempotency keys; each
+ successful transition is auditable and published through the outbox.
+
+The notification stream is bounded by duration and polling interval, records
+connection/heartbeat metadata, limits concurrent connections per recipient,
+and advertises at-least-once delivery so clients can resume and deduplicate by
+notification id plus inbox revision.

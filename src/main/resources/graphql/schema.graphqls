@@ -3,6 +3,8 @@ scalar DateTime
 
 type Query {
   notificationServiceInfo: NotificationServiceInfo!
+  notificationInbox(input: NotificationInboxInput): NotificationConnection!
+  unreadNotificationCount: UnreadNotificationCount!
   notificationPreferences: NotificationPreferenceConnection!
   notificationTemplates(input: NotificationTemplateQueryInput): NotificationTemplateConnection!
   notificationDelivery(id: ID!): NotificationDelivery!
@@ -10,6 +12,8 @@ type Query {
 }
 
 type Mutation {
+  markNotificationRead(input: MarkNotificationReadInput!): Notification!
+  markAllNotificationsRead(input: MarkAllNotificationsReadInput!): MarkAllNotificationsReadPayload!
   updateNotificationPreferences(input: UpdateNotificationPreferencesInput!): NotificationPreferenceConnection!
   saveNotificationTemplateDraft(input: PublishNotificationTemplateInput!): NotificationTemplate!
   previewNotificationTemplate(input: PreviewNotificationTemplateInput!): NotificationTemplatePreview!
@@ -30,6 +34,9 @@ type Subscription {
 type NotificationStreamEvent {
   cursor: Cursor!
   notification: Notification!
+  eventVersion: Int
+  notificationRevision: Int
+  deliveryGuarantee: NotificationDeliveryGuarantee
 }
 
 type Notification {
@@ -40,6 +47,40 @@ type Notification {
   channels: [NotificationChannel!]!
   createdAt: DateTime!
   readAt: DateTime
+  notificationType: String
+  priority: NotificationPriority
+  reference: NotificationReference
+  templateKey: String
+  templateRevision: Int
+  policyRevision: Int
+  inboxRevision: Int
+  requiredChannels: [NotificationChannel!]!
+  optionalChannels: [NotificationChannel!]!
+  version: Int
+}
+
+type NotificationReference {
+  type: String!
+  id: ID!
+  actionUrl: String
+}
+
+type NotificationConnection {
+  nodes: [Notification!]!
+  pageInfo: NotificationPageInfo!
+  unread: UnreadNotificationCount!
+}
+
+type UnreadNotificationCount {
+  count: Int!
+  asOfCursor: Cursor!
+  inboxRevision: Int!
+}
+
+type MarkAllNotificationsReadPayload {
+  markedCount: Int!
+  throughCursor: Cursor!
+  inboxRevision: Int!
 }
 
 type NotificationPreferenceConnection {
@@ -143,6 +184,13 @@ enum NotificationCategory {
   SYSTEM
 }
 
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum NotificationChannel {
   IN_APP
   EMAIL
@@ -162,12 +210,34 @@ enum NotificationCursorState {
   RESYNC_REQUIRED
 }
 
+enum NotificationDeliveryGuarantee {
+  AT_LEAST_ONCE
+}
+
 input NotificationTemplateQueryInput {
   templateKey: String
   channel: NotificationChannel
   status: NotificationTemplateStatus
   afterCursor: Cursor
   limit: Int = 25
+}
+
+input NotificationInboxInput {
+  afterCursor: Cursor
+  limit: Int = 25
+  unreadOnly: Boolean = false
+  category: NotificationCategory
+}
+
+input MarkNotificationReadInput {
+  notificationId: ID!
+  expectedVersion: Int!
+  idempotencyKey: String!
+}
+
+input MarkAllNotificationsReadInput {
+  throughCursor: Cursor!
+  idempotencyKey: String!
 }
 
 input QuietHoursInput {
