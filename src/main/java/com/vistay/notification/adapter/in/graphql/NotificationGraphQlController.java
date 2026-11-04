@@ -3,6 +3,7 @@ package com.vistay.notification.adapter.in.graphql;
 import com.vistay.notification.application.NotificationAuthorizationService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -47,7 +48,12 @@ public class NotificationGraphQlController {
             long cursor) {
         return jdbc.sql("""
             SELECT n.event_sequence, n.id, n.notification_type, n.title, n.body,
-                   n.created_at, n.read_at
+                   n.category, n.created_at, n.read_at,
+                   COALESCE((
+                       SELECT string_agg(d.channel, ',' ORDER BY d.channel)
+                       FROM notification_deliveries d
+                       WHERE d.notification_id = n.id
+                   ), 'IN_APP') AS channels_csv
             FROM notifications n
             WHERE n.recipient_account_type = :accountType
               AND n.recipient_user_id = :accountId
@@ -66,16 +72,28 @@ public class NotificationGraphQlController {
     private static Notification toApi(NotificationRow row) {
         return new Notification(
             row.id(),
-            category(row.notificationType()),
+            category(row.category(), row.notificationType()),
             row.title(),
             row.body(),
-            List.of("IN_APP"),
+            channels(row.channelsCsv()),
             row.createdAt().toString(),
             row.readAt() == null ? null : row.readAt().toString()
         );
     }
 
-    private static String category(String notificationType) {
+    private static List<String> channels(String channelsCsv) {
+        if (channelsCsv == null || channelsCsv.isBlank()) {
+            return List.of("IN_APP");
+        }
+        return Arrays.stream(channelsCsv.split(","))
+            .filter(channel -> !channel.isBlank())
+            .toList();
+    }
+
+    private static String category(String storedCategory, String notificationType) {
+        if (storedCategory != null && !storedCategory.isBlank()) {
+            return storedCategory;
+        }
         return notificationType != null && notificationType.contains("SECURITY")
             ? "SECURITY"
             : "WELCOME";
@@ -96,8 +114,14 @@ public class NotificationGraphQlController {
         }
     }
 
-    record NotificationRow(long eventSequence, UUID id, String notificationType, String title,
-        String body, OffsetDateTime createdAt, OffsetDateTime readAt) {}
+    record NotificationRow(String category, long eventSequence, UUID id, String notificationType,
+        String title, String body, String channelsCsv, OffsetDateTime createdAt,
+        OffsetDateTime readAt) {
+        NotificationRow(long eventSequence, UUID id, String notificationType, String title,
+            String body, OffsetDateTime createdAt, OffsetDateTime readAt) {
+            this(null, eventSequence, id, notificationType, title, body, "IN_APP", createdAt, readAt);
+        }
+    }
     public record NotificationStreamEvent(String cursor, Notification notification) {}
     public record Notification(UUID id, String category, String title, String body,
         List<String> channels, String createdAt, String readAt) {}

@@ -32,6 +32,10 @@ type Notification {
 enum NotificationCategory {
   WELCOME
   SECURITY
+  BOOKING
+  OPERATIONS
+  FINANCE
+  SYSTEM
 }
 
 enum NotificationChannel {
