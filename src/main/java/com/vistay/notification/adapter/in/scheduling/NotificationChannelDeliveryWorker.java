@@ -1,6 +1,6 @@
 package com.vistay.notification.adapter.in.scheduling;
 
-import com.vistay.notification.application.NotificationChannelDeliveryService;
+import com.vistay.notification.application.NotificationDeliveryRetryService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
     havingValue = "true",
     matchIfMissing = false)
 public class NotificationChannelDeliveryWorker {
-    private final NotificationChannelDeliveryService deliveries;
+    private final NotificationDeliveryRetryService deliveries;
 
-    public NotificationChannelDeliveryWorker(NotificationChannelDeliveryService deliveries) {
+    public NotificationChannelDeliveryWorker(NotificationDeliveryRetryService deliveries) {
         this.deliveries = deliveries;
     }
 
