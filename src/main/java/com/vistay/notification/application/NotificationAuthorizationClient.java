@@ -52,6 +52,19 @@ public class NotificationAuthorizationClient {
         return snapshot;
     }
 
+    /** Resolves a recipient identity without reading another service's database. */
+    public Snapshot resolveRecipient(AccountKind accountType, UUID accountId) {
+        Snapshot snapshot = get(accountType, accountId);
+        if (!snapshot.active() || snapshot.profileId() == null) {
+            throw new AuthorizationException("PROFILE_INACTIVE", "ViStay profile is inactive");
+        }
+        if (snapshot.authorizationVersion() < 1) {
+            throw new AuthorizationException(
+                    "AUTHORIZATION_INVALID", "Authorization snapshot revision is invalid");
+        }
+        return snapshot;
+    }
+
     public Snapshot get(AccountKind accountType, UUID accountId) {
         AccountKey key = new AccountKey(accountType, accountId);
         Instant now = Instant.now();
