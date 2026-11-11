@@ -1,7 +1,9 @@
+# syntax=docker/dockerfile:1.7
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /workspace
 COPY . .
-RUN chmod +x gradlew && ./gradlew bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+    chmod +x gradlew && ./gradlew bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app

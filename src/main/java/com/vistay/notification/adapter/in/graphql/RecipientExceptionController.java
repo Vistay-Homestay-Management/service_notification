@@ -30,7 +30,7 @@ public class RecipientExceptionController {
     public RecipientExceptionConnection notificationRecipientExceptions(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        authorization.requireOperator(jwt, "notifications:recipient-exception:read");
+        authorization.requireOperator(jwt, "notification-recipient-exception:read");
         RecipientExceptionService.ExceptionConnection result = exceptions.list(
             new RecipientExceptionService.ExceptionQuery(
                 string(input, "afterCursor"), integer(input, "limit", 25),
@@ -44,7 +44,7 @@ public class RecipientExceptionController {
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
         var actor = authorization.requireOperator(jwt,
-            "notifications:recipient-exception:repair");
+            "notification-recipient-exception:repair");
         ResolutionAction action;
         try {
             action = ResolutionAction.valueOf(requiredString(input, "action").toUpperCase());

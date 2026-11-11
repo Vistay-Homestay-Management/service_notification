@@ -41,7 +41,7 @@ public class NotificationAuthorizationService {
 
     public AuthorizedRecipient requireOwnPreferences(Jwt jwt, boolean manage) {
         Principal principal = principal(jwt);
-        String permission = manage ? "notifications:preferences:manage" : "notifications:read";
+        String permission = manage ? "notification:update" : "notification:read";
         try {
             var snapshot = authorizations.require(principal.accountType(), principal.accountId(), permission);
             Set<Scope> scopes = snapshot.scopes(permission);
