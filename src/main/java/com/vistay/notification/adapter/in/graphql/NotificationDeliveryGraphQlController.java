@@ -30,13 +30,13 @@ public class NotificationDeliveryGraphQlController {
     public DeliveryView notificationDelivery(
             @Argument String id,
             @AuthenticationPrincipal Jwt jwt) {
-        authorization.requireOperator(jwt, "notifications:operations:read");
+        authorization.requireOperator(jwt, "notification-delivery:read");
         return map(deliveries.getDelivery(UUID.fromString(id)));
     }
 
     @QueryMapping
     public List<ProviderHealthView> notificationProviderHealth(@AuthenticationPrincipal Jwt jwt) {
-        authorization.requireOperator(jwt, "notifications:operations:read");
+        authorization.requireOperator(jwt, "notification-delivery:read");
         return deliveries.providerHealth().stream().map(this::map).toList();
     }
 
@@ -44,7 +44,7 @@ public class NotificationDeliveryGraphQlController {
     public DeliveryView retryNotificationDelivery(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        var actor = authorization.requireOperator(jwt, "notifications:delivery:retry");
+        var actor = authorization.requireOperator(jwt, "notification-delivery:retry");
         var result = deliveries.repair(new NotificationDeliveryRetryService.RepairCommand(
             UUID.fromString(required(input, "deliveryId")), RepairAction.RETRY_NOW,
             integer(input, "expectedVersion"), required(input, "reason"), null,

@@ -40,7 +40,7 @@ public class NotificationManagementGraphQlController {
     public TemplateConnection notificationTemplates(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        authorization.requireOperator(jwt, "notifications:template:read");
+        authorization.requireOperator(jwt, "notification-template:read");
         List<TemplateView> nodes = templates.list(new NotificationTemplateService.TemplateQuery(
             string(input, "templateKey"), string(input, "channel"), string(input, "status"),
             integer(input, "limit", 25))).stream().map(this::map).toList();
@@ -65,7 +65,7 @@ public class NotificationManagementGraphQlController {
     public TemplateView saveNotificationTemplateDraft(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        var actor = authorization.requireOperator(jwt, "notifications:template:manage");
+        var actor = authorization.requireOperator(jwt, "notification-template:manage");
         return map(templates.saveDraft(templateCommand(input, actor)));
     }
 
@@ -73,7 +73,7 @@ public class NotificationManagementGraphQlController {
     public TemplatePreviewView previewNotificationTemplate(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        authorization.requireOperator(jwt, "notifications:template:read");
+        authorization.requireOperator(jwt, "notification-template:read");
         Map<String, String> variables = new java.util.LinkedHashMap<>();
         for (Map<String, Object> variable : list(input, "variables")) {
             variables.put(requiredString(variable, "name"), requiredString(variable, "value"));
@@ -87,7 +87,7 @@ public class NotificationManagementGraphQlController {
     public TemplateView publishNotificationTemplate(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        var actor = authorization.requireOperator(jwt, "notifications:template:publish");
+        var actor = authorization.requireOperator(jwt, "notification-template:publish");
         return map(templates.publish(templateCommand(input, actor)));
     }
 
@@ -95,7 +95,7 @@ public class NotificationManagementGraphQlController {
     public TemplateView retireNotificationTemplate(
             @Argument Map<String, Object> input,
             @AuthenticationPrincipal Jwt jwt) {
-        var actor = authorization.requireOperator(jwt, "notifications:template:publish");
+        var actor = authorization.requireOperator(jwt, "notification-template:publish");
         return map(templates.retire(new NotificationTemplateService.RetireCommand(
             uuid(input, "templateId"), integer(input, "expectedVersion", 0),
             requiredString(input, "reason"), requiredString(input, "idempotencyKey"),

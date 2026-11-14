@@ -59,6 +59,17 @@ spring:
       observation-enabled: true
     template:
       observation-enabled: true
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
+      mail.smtp.connectiontimeout: ${SMTP_CONNECTION_TIMEOUT_MS:3000}
+      mail.smtp.timeout: ${SMTP_TIMEOUT_MS:5000}
+      mail.smtp.writetimeout: ${SMTP_WRITE_TIMEOUT_MS:5000}
   security:
     oauth2:
       resourceserver:
@@ -111,6 +122,7 @@ vistay:
   topics:
     profile-provisioned: ${PROFILE_PROVISIONED_TOPIC:vistay.user.profile-provisioned.v1}
     authorization-changed: ${AUTHORIZATION_CHANGED_TOPIC:vistay.user.authorization-changed.v1}
+    profile-link-challenge-issued: ${PROFILE_LINK_CHALLENGE_ISSUED_TOPIC:vistay.user.profile-link-challenge-issued.v1}
     domain-event-pattern: ${DOMAIN_EVENT_TOPIC_PATTERN:(vistay\.(auth|booking|operations|finance|payment|system)\..*)\.v[0-9]+}
     domain-event-group: ${DOMAIN_EVENT_CONSUMER_GROUP:${KAFKA_CONSUMER_GROUP:vistay-notification}-domain-inbox-v3}
   notifications:
@@ -120,6 +132,16 @@ vistay:
     provider-timeout: ${NOTIFICATION_PROVIDER_TIMEOUT:2s}
     stream-max-duration: ${NOTIFICATION_STREAM_MAX_DURATION:30m}
     stream-poll-interval: ${NOTIFICATION_STREAM_POLL_INTERVAL:2s}
+    profile-link-email-enabled: ${PROFILE_LINK_EMAIL_ENABLED:true}
+    profile-link-email-poll-delay-ms: ${PROFILE_LINK_EMAIL_POLL_DELAY_MS:1000}
+    profile-link-email-from: ${PROFILE_LINK_EMAIL_FROM:no-reply@vistay.localhost}
+  identity-protection:
+    vault:
+      address: ${VAULT_ADDR:http://localhost:8200}
+      token: ${VAULT_TOKEN:}
+      token-file: ${VAULT_TOKEN_FILE:}
+      transit-mount: ${VAULT_TRANSIT_MOUNT:transit}
+      delivery-key: ${VAULT_PROFILE_LINK_DELIVERY_KEY:vistay-profile-link-delivery}
   authorization:
     local-cache-ttl: ${AUTHORIZATION_LOCAL_CACHE_TTL:30s}
     grpc-deadline: ${AUTHORIZATION_GRPC_DEADLINE:2s}
