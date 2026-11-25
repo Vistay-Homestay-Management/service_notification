@@ -3,6 +3,7 @@ plugins {
 	id("org.springframework.boot") version "4.1.1"
 	id("io.spring.dependency-management") version "1.1.7"
 	id("com.google.protobuf") version "0.9.6"
+	id("org.sonarqube") version "7.6.0.18749"
 }
 
 group = "com.vistay"
@@ -66,5 +67,12 @@ sourceSets {
 protobuf {
 	plugins {
 		create("grpc")
+	}
+}
+
+sonar {
+	properties {
+		property("sonar.projectKey", "service_notification")
+		property("sonar.projectName", "service_notification")
 	}
 }
